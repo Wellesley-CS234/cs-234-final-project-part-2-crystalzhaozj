@@ -163,7 +163,7 @@ with tab1:
         low_mid_df,
         x='category',
         y='total_pageviews_log',
-        title='Total Pageviews: High vs Low Importance Articles',
+        title='Total Pageviews: Low vs Mid Importance Articles',
         labels={'category': 'Importance Category', 'total_pageviews': 'Total Pageviews'}
     )
     st.plotly_chart(low_mid_box, use_container_width=True)
@@ -227,6 +227,7 @@ with tab1:
     st.markdown("While there does appear to be a significant difference between pageviews among articles with different levels of importance, it's important to keep in mind that there's also much more variation & a higher number of articles for low-level of importance. A next step would be to examine across multiple Wikiprojects and see if this pattern holds consistently.")
     st.markdown("The relatively low accuracy of the classifier (outlined in New Features & Feature Engineering section)  also goes to show how assigning the level of importance to an article is quite a subjective, project-specific, and arbitrary task that requires more input beyond just quantitative information on how viewers engage with the article.")
     st.markdown("As for the differences across time, it's interesting to note that in early 2023, pageviews across categories were clustered rather closely but they began to diverge as 2024 unfolded. Moreover, when examining daily total pageviews, it's notable that most peaks are for articles with unknown importance. In other words, the engagement is temporary and most likely inconsistent.")
+
 with tab2:
     st.header("Data Summary")
     st.markdown("""
