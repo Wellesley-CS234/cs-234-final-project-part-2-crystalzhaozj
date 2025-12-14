@@ -1,12 +1,8 @@
 streamlit
 pandas
 plotly
-matplotlib.pyplot
+matplotlib
 seaborn
-sklearn.metrics
-sklearn.feature_extraction
+scikit-learn
 numpy
-sklearn.model_selection
-sklearn.linear_model
-sklearn
 scipy
