@@ -157,6 +157,23 @@ with tab1:
     with col2:
         st.metric("Mean of High Importance Pageviews",high['total_pageviews'].mean())
 
+    st.subheader("Low vs. Mid")
+    low_mid_df = unique_df[unique_df['category'].isin(['Mid-importance', 'Low-importance'])]
+    low_mid_box = px.box(
+        low_mid_df,
+        x='category',
+        y='total_pageviews_log',
+        title='Total Pageviews: High vs Low Importance Articles',
+        labels={'category': 'Importance Category', 'total_pageviews': 'Total Pageviews'}
+    )
+    st.plotly_chart(low_mid_box, use_container_width=True)
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Mean of Mid Importance Pageviews",mid['total_pageviews'].mean())
+    with col2:
+        st.metric("Mean of Low Importance Pageviews",low['total_pageviews'].mean())
+
+
     st.header("Differences over Time")
     st.markdown("Since I was also interested in examining if there was a shift in viewing frequency over the 2 years, I wanted to plot pageviews across time.")
     all_cats = sorted(all_df['category'].unique())
@@ -206,6 +223,10 @@ with tab1:
     peak1 = all_df[all_df['date'] == pd.to_datetime('2024-12-04')]
     st.dataframe(peak1.sort_values(by='pageviews', ascending=False))
 
+    st.header("Summary")
+    st.markdown("While there does appear to be a significant difference between pageviews among articles with different levels of importance, it's important to keep in mind that there's also much more variation & a higher number of articles for low-level of importance. A next step would be to examine across multiple Wikiprojects and see if this pattern holds consistently.")
+    st.markdown("The relatively low accuracy of the classifier (outlined in New Features & Feature Engineering section)  also goes to show how assigning the level of importance to an article is quite a subjective, project-specific, and arbitrary task that requires more input beyond just quantitative information on how viewers engage with the article.")
+    st.markdown("As for the differences across time, it's interesting to note that in early 2023, pageviews across categories were clustered rather closely but they began to diverge as 2024 unfolded. Moreover, when examining daily total pageviews, it's notable that most peaks are for articles with unknown importance. In other words, the engagement is temporary and most likely inconsistent.")
 with tab2:
     st.header("Data Summary")
     st.markdown("""
@@ -403,7 +424,6 @@ with tab3:
     accuracy = accuracy_score(y_test, y_pred)
     st.metric("Accuracy", f"{accuracy:.3f}")
     st.markdown("The most obvious explanation for this poor accuracy is the size of the dataset: 750 unique data points is not enough for building a classifier from scratch.")
-    st.markdown("However, this also goes to show how assigning the level of importance to an article is quite a subjective, project-specific, and arbitrary task that requires more input beyond just quantitative information on how viewers engage with the article.")
 
     on = st.toggle("Click to see the confusion matrix!")
     if on:
