@@ -9,10 +9,16 @@ import numpy as np
 vec = DictVectorizer(sparse=False, dtype=np.int64)
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score
+from sklearn import neighbors
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+import scipy
+from scipy import stats
 
 
 st.set_page_config(
-    page_title="Crystal's Final Project (in Process): Health Article Classification by Importance",
+    page_title="Health Article Classification by Importance",
     layout="wide"
 )
 
@@ -35,13 +41,14 @@ low = unique_df[unique_df['category'] == 'Low-importance']
 mid = unique_df[unique_df['category'] == 'Mid-importance']
 
 all_df = load_data("all_health_articles.csv")
+all_df = all_df.drop_duplicates()
 all_df['date'] = pd.to_datetime(all_df['date'])
 df_2023 = all_df[all_df['date'].dt.year == 2023]
 df_2024 = all_df[all_df['date'].dt.year == 2024]
 
 
 # creating 6 tabs for each section 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Main Page & Findings", "Data Summary", "New Features", "Feature Engineering", "Hypothesis Testing", "Summary and Ethical Considerations"])
+tab1, tab2, tab3 = st.tabs(["Main Page & Findings", "Data Summary", "New Features & Feature Engineering"])
 
 with tab1: 
     st.header("CS234 Final Project: Classifying & Comparing Health Articles by Level of Importance")
@@ -52,7 +59,153 @@ with tab1:
                 **Ethical considerations & Limitations**: The scope of the dataset is limited geographically to the United States and linguistically to the English language. The obscure nature of assessing the level of importance for articles in each Wikiproject makes it especially difficult to tackle this task of assessment from an equitable standpoint. For instance, Healthcare in the United States is labeled as a high-importance article, but not Healthcare in any other region or country. It’s pivotal to consider what a high or low level of importance assignation can alter engagement with these subjects too. Even though there are more supposedly objective metrics in determining importance, such as the total number of revisions, it’s still important to keep in mind the skewed interest towards larger countries or establishments. \n
     """)
 
-    st.subheader("Presentation of Findings")
+    st.header("Presentation of Findings")
+    st.subheader("Hypothesis: There is no significant difference between pageviews for health articles across categories of high, medium, low, and unknown levels of importance.")
+    unique_df['total_pageviews_log'] = np.log1p(unique_df['total_pageviews'])
+
+    st.markdown("First, some visualizations...")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        pageviews_fig = px.box(
+            unique_df.sort_values(by='total_pageviews'),
+            x='category',
+            y='total_pageviews',
+            title='Distribution of Pageviews by Article Importance',
+            labels={'category': 'Importance Category', 'total_pageviews': 'Pageviews'}
+        )
+        st.plotly_chart(pageviews_fig, use_container_width=True)
+    
+    with col2:
+        pageviews_log_fig = px.box(
+            unique_df.sort_values(by='total_pageviews_log'),
+            x='category',
+            y='total_pageviews_log',
+            title='Distribution of Pageviews (LOGGED) by Article Importance',
+            labels={'category': 'Importance Category', 'total_pageviews_log': 'Log(pageviews)'}
+        )
+        st.plotly_chart(pageviews_log_fig, use_container_width=True)
+    
+    st.write("It's interesting to observe that there are many outliers for articles with a low level of importance. We can examine some of them in the tab Data Summary.")
+    # Combine the three groups into one DataFrame
+    combined = pd.concat([
+        high.assign(importance='High'),
+        mid.assign(importance='Mid'),
+        low.assign(importance='Low')
+    ])
+
+    combined['log_total_pageviews'] = np.log1p(combined['total_pageviews'])
+    hist_fig = px.histogram(
+        combined,
+        x='log_total_pageviews',
+        color='importance',
+        barmode='overlay',
+        nbins=50,
+        title='Log-Transformed Total Pageviews Distribution by Importance Level',
+        labels={'log_total_pageviews': 'Log(Total Pageviews)', 'importance': 'Importance Level'}
+    )
+    st.plotly_chart(hist_fig, use_container_width=True)
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        high_pageviews = px.histogram(
+            high,
+            x='total_pageviews',
+            title = "High Importance"
+        )
+        st.plotly_chart(high_pageviews)
+    with col2:
+        mid_pageviews = px.histogram(
+            mid,
+            x='total_pageviews',
+            title = 'Mid Importance'
+        )
+        st.plotly_chart(mid_pageviews)
+    with col3:
+        low_pageviews = px.histogram(
+            low,
+            x='total_pageviews',
+            title = 'Low Importance'
+        )
+        st.plotly_chart(low_pageviews)
+
+    st.header("Testing the Null Hypothesis")
+    st.markdown("1. ANOVA allows us to test if there is any difference among the three group means I'm interested in.")
+    df_sample = unique_df.sample(n=400, random_state=42)
+    groups = []
+    for category in df_sample['category'].unique():
+        groups.append(df_sample[df_sample['category'] == category]['total_pageviews'].dropna())
+    f_stat, p_val = stats.f_oneway(*groups)
+
+    st.metric("F-statistic", f"{f_stat}")
+    st.metric("P-value", f"{p_val}")
+    st.write("This is promising! It suggests that there is likely a significant difference between some categories.")
+
+    st.markdown("2. Pairwise T-Tests: Let's find the specific differences between particular groups.")
+    st.subheader("High vs. Low")
+    high_low_df = unique_df[unique_df['category'].isin(['High-importance', 'Low-importance'])]
+    high_low_box = px.box(
+        high_low_df,
+        x='category',
+        y='total_pageviews_log',
+        title='Total Pageviews: High vs Low Importance Articles',
+        labels={'category': 'Importance Category', 'total_pageviews': 'Total Pageviews'}
+    )
+    st.plotly_chart(high_low_box, use_container_width=True)
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Mean of Low Importance Pageviews",low['total_pageviews'].mean())
+    with col2:
+        st.metric("Mean of High Importance Pageviews",high['total_pageviews'].mean())
+
+    st.header("Differences over Time")
+    st.markdown("Since I was also interested in examining if there was a shift in viewing frequency over the 2 years, I wanted to plot pageviews across time.")
+    all_cats = sorted(all_df['category'].unique())
+    agg_type = st.radio("Granularity", ["Daily", "Weekly", "Monthly"], index=1, key="granularity_cat")
+    if agg_type == "Daily":
+        # Group by Date AND Category
+        plot_df = all_df.groupby(['date', 'category'])['pageviews'].sum().reset_index()
+            
+    elif agg_type == "Weekly":
+        plot_df = (
+            all_df
+            .set_index('date')
+            .groupby('category')
+            .resample('W')['pageviews']
+            .sum()
+            .reset_index()
+        )
+            
+    elif agg_type == "Monthly":
+            plot_df = (
+                all_df
+                .set_index('date')
+                .groupby('category')
+                .resample('M')['pageviews']
+                .sum()
+                .reset_index()
+            )
+    
+    if not plot_df.empty:
+        st.subheader(f"Total Pageviews by Category ({agg_type})")
+
+        
+        fig = px.line(
+            plot_df, 
+            x='date', 
+            y='pageviews', 
+            color='category', # Different line for each category
+            markers=True,
+            title="Aggregate Pageviews per Category",
+            template="plotly_white"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No data available for the selected filters.")
+    
+    st.markdown("Let's examine one of these peaks to better understand how people engage with articles of different degrees of importance.")
+    peak1 = all_df[all_df['date'] == pd.to_datetime('2024-12-04')]
+    st.dataframe(peak1.sort_values(by='pageviews', ascending=False))
 
 with tab2:
     st.header("Data Summary")
@@ -89,9 +242,56 @@ with tab2:
         low = low.drop('category', axis=1)
         low = low.sort_values(by='total_pageviews', ascending=False)
         st.dataframe(low.head())
-    
-    st.write("Articles by Category")
 
+    cat_counts = unique_df['category'].value_counts().rename_axis('Category').reset_index(name='Count')
+        
+    fig_bar = px.bar(
+        cat_counts, 
+        x='Category', 
+        y='Count', 
+        color='Category',
+        text='Count',
+        title="Number of Articles per Category",
+        color_discrete_sequence=px.colors.qualitative.Pastel
+    )
+
+    fig_bar.update_traces(textposition='outside')
+    st.plotly_chart(fig_bar, use_container_width=True)
+
+    
+    st.subheader("Most consistently viewed articles")
+    st.caption("You can click on the column 'days_viewed' to sort it!")
+    category = st.radio(
+        "Choose a category",
+        ["High importance", "Low importance", "Mid importance"]
+    )
+    if category == 'High importance':
+        all_high_df = all_df[all_df['category'] == 'High-importance']
+        consistency_high_df = (
+            all_high_df.groupby(['qid', 'article'])
+            .apply(lambda x: (x['pageviews'] > 0).sum())
+            .reset_index(name='days_viewed')
+        )
+
+        st.dataframe(consistency_high_df)
+    if category == 'Low importance':
+        all_low_df = all_df[all_df['category'] == 'Low-importance']
+        consistency_low_df = (
+            all_low_df.groupby(['qid', 'article'])
+            .apply(lambda x: (x['pageviews'] > 0).sum())
+            .reset_index(name='days_viewed')
+        )
+
+        st.dataframe(consistency_low_df)
+    if category == 'Mid importance':
+        all_mid_df = all_df[all_df['category'] == 'Mid-importance']
+        consistency_mid_df = (
+            all_mid_df.groupby(['qid', 'article'])
+            .apply(lambda x: (x['pageviews'] > 0).sum())
+            .reset_index(name='days_viewed')
+        )
+
+        st.dataframe(consistency_mid_df)
 
     
 with tab3: 
@@ -200,165 +400,29 @@ with tab3:
     model.fit(X_train_scaled, y_train)
     y_pred = model.predict(X_test_scaled)
 
-    st.subheader("Confusion Matrix")
-    labels = sorted(unique_df['category'].unique())
-    # Compute the confusion matrix
-    cm = confusion_matrix(y_test, y_pred, labels=labels)
-    fig, ax = plt.subplots()
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=labels, yticklabels=labels, ax=ax)
-    plt.xlabel('Predicted')
-    plt.ylabel('True')
-    plt.title('Confusion Matrix (Multinomial Logistic Regression)')
-    st.pyplot(fig)
+    st.subheader("Evaluation")
+    accuracy = accuracy_score(y_test, y_pred)
+    st.metric("Accuracy", f"{accuracy:.3f}")
+    st.markdown("The most obvious explanation for this poor accuracy is the size of the dataset: 750 unique data points is not enough for building a classifier from scratch.")
+    st.markdown("However, this also goes to show how assigning the level of importance to an article is quite a subjective, project-specific, and arbitrary task that requires more input beyond just quantitative information on how viewers engage with the article.")
 
-
-with tab4: 
-    st.header("Feature Engineering")
-
-with tab5:
-    st.header("Hypothesis Testing")
-    st.subheader("Hypothesis: There is no significant difference between pageviews for health articles across categories of high, medium, low, and unknown levels of importance.")
-
-    # for a small sample: use p-value testing
-    # for everything: use visualizations
-
-with tab6: 
-    st.header("Summary and Ethical Considerations")
-
-
-
-st.header("1. Assembling Full Dataset")
-st.markdown("There are 6 subcategories: high, medium, low, top importance & NA/unkown importance.")
-st.markdown("Each category is associated with a talk page. Using the talk page, I then accessed the page properties via mwClient API calls. I finally talked to the duckdb server and filtered the full dataset using this unique QID list.")
-st.markdown("In the future, I will try to reassemble this dataset to also retrieve other properties like page size and number of unique revisions, as these are helpful features that can be used to build a classifier.")
-
-
-"""
-st.subheader("Pageview Across Category Analysis")
-cat_counts = df1['category'].value_counts().rename_axis('Category').reset_index(name='Count')
+    on = st.toggle("Click to see the confusion matrix!")
+    if on:
+        labels = sorted(classifier_df['category'].unique())
+        cm = confusion_matrix(y_test, y_pred, labels=labels)
+        fig, ax = plt.subplots(figsize=(5, 4)) 
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=labels, yticklabels=labels, ax=ax)
+        plt.xlabel('Predicted')
+        plt.ylabel('True')
+        plt.title('Confusion Matrix (Multinomial Logistic Regression)')
+        st.pyplot(fig)
     
-fig_bar = px.bar(
-    cat_counts, 
-    x='Category', 
-    y='Count', 
-    color='Category',
-    text='Count',
-    title="Number of Articles per Category",
-    color_discrete_sequence=px.colors.qualitative.Pastel
-)
+    st.subheader("Additional kNN Classifier")
+    knn = neighbors.KNeighborsClassifier() 
+    knn.fit(X_train, y_train) 
+    knn.score(X_test, y_test)
+    predicted = knn.predict(X_test)
+    with st.expander("Show predicted and true label pairs predicted through kNN"):
+        for pred, true in zip(predicted, y_test):
+            st.write(f"Predicted: {pred} | True: {true}")
 
-fig_bar.update_traces(textposition='outside')
-st.plotly_chart(fig_bar, use_container_width=True)
-
-
-# ALL HEALTH ARTICLES by date section
-
-
-st.subheader("Time Series Analysis: Pageviews by Category")
-all_cats = sorted(df2['category'].unique())
-selected_cats = st.multiselect(
-    "Select Categories to Compare",
-    options=all_cats,
-    default=all_cats # Select all by default
-)
-agg_type = st.radio("Granularity", ["Daily", "Weekly", "Monthly"], index=1, key="granularity_cat")
-
-# We sum pageviews for ALL articles within the same category for the given time period
-if agg_type == "Daily":
-    # Group by Date AND Category
-    plot_df = df2.groupby(['date', 'category'])['pageviews'].sum().reset_index()
-    
-elif agg_type == "Weekly":
-    plot_df = (
-        df2
-        .set_index('date')
-        .groupby('category')
-        .resample('W')['pageviews']
-        .sum()
-        .reset_index()
-    )
-    
-elif agg_type == "Monthly":
-    plot_df = (
-        df2
-        .set_index('date')
-        .groupby('category')
-        .resample('M')['pageviews']
-        .sum()
-        .reset_index()
-    )
-
-# --- 4. Visualization ---
-
-if not plot_df.empty:
-    st.subheader(f"Total Pageviews by Category ({agg_type})")
-    
-    fig = px.line(
-        plot_df, 
-        x='date', 
-        y='pageviews', 
-        color='category', # Different line for each category
-        markers=True,
-        title="Aggregate Pageviews per Category",
-        template="plotly_white"
-    )
-    
-    fig.update_traces(hovertemplate='%{y:,.0f} views')
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Summary Metrics
-    st.divider()
-    cols = st.columns(len(selected_cats))
-    for i, cat in enumerate(selected_cats):
-        total_views = plot_df[plot_df['category'] == cat]['pageviews'].sum()
-        cols[i].metric(label=cat, value=f"{total_views:,.0f}")
-
-else:
-    st.info("No data available for the selected filters.")
-
-
-
-st.subheader("Time Series Analysis: Aggregated Pageviews Over Time")
-agg_type = st.radio("Granularity", ["Daily", "Weekly", "Monthly"], index=1, key="granularity_agg")
-
-# Step 2: Aggregate
-# We sum pageviews for ALL articles within the same category for the given time period
-if agg_type == "Daily":
-    # Group by Date AND Category
-    plot_df = df2.groupby('date')['pageviews'].sum().reset_index()
-    
-elif agg_type == "Weekly":
-    plot_df = (
-        df2
-        .set_index('date')
-        .resample('W')['pageviews']
-        .sum()
-        .reset_index()
-    )
-    
-elif agg_type == "Monthly":
-    plot_df = (
-        df2
-        .set_index('date')
-        .resample('M')['pageviews']
-        .sum()
-        .reset_index()
-    )
-
-# --- 4. Visualization ---
-
-if not plot_df.empty:
-    st.subheader("Pageviews Across Time")
-    
-    fig = px.line(
-        plot_df, 
-        x='date', 
-        y='pageviews', 
-        markers=True,
-        title="Aggregate Pageviews",
-        template="plotly_white"
-    )
-    
-    fig.update_traces(hovertemplate='%{y:,.0f} views')
-    st.plotly_chart(fig, use_container_width=True)
-"""
