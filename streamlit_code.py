@@ -3,16 +3,13 @@ import pandas as pd
 import plotly.express as px
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, accuracy_score
 from sklearn.feature_extraction import DictVectorizer
 import numpy as np
 vec = DictVectorizer(sparse=False, dtype=np.int64)
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score
 from sklearn import neighbors
-import statsmodels.api as sm
-from statsmodels.formula.api import ols
 import scipy
 from scipy import stats
 
@@ -88,7 +85,8 @@ with tab1:
         st.plotly_chart(pageviews_log_fig, use_container_width=True)
     
     st.write("It's interesting to observe that there are many outliers for articles with a low level of importance. We can examine some of them in the tab Data Summary.")
-    # Combine the three groups into one DataFrame
+    
+    st.markdown("The following graph was created with the help of Gemini -- the goal was to show the spread of total pageviews of all articles on one singular histogram.")
     combined = pd.concat([
         high.assign(importance='High'),
         mid.assign(importance='Mid'),
