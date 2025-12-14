@@ -59,6 +59,7 @@ with tab1:
                 **Ethical considerations & Limitations**: The scope of the dataset is limited geographically to the United States and linguistically to the English language. The obscure nature of assessing the level of importance for articles in each Wikiproject makes it especially difficult to tackle this task of assessment from an equitable standpoint. For instance, Healthcare in the United States is labeled as a high-importance article, but not Healthcare in any other region or country. It’s pivotal to consider what a high or low level of importance assignation can alter engagement with these subjects too. Even though there are more supposedly objective metrics in determining importance, such as the total number of revisions, it’s still important to keep in mind the skewed interest towards larger countries or establishments. \n
     """)
 
+    st.divider()
     st.header("Presentation of Findings")
     st.subheader("Hypothesis: There is no significant difference between pageviews for health articles across categories of high, medium, low, and unknown levels of importance.")
     unique_df['total_pageviews_log'] = np.log1p(unique_df['total_pageviews'])
