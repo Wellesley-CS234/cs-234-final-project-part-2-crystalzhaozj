@@ -409,7 +409,7 @@ with tab3:
         """
     st.code(scaling_code, language="python")
 
-    model = LogisticRegression(multi_class='multinomial', solver='lbfgs', max_iter=1000)
+    model = LogisticRegression(solver='lbfgs', max_iter=1000)
     from sklearn.preprocessing import StandardScaler
 
     scaler = StandardScaler()
